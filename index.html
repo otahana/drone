@@ -13,7 +13,7 @@
       -webkit-user-select: none;
     }
     body {
-      background-color: #f1f5f9; /* 【色】画面全体（外側）の背景色（明るいグレー） */
+      background-color: #f1f5f9; /* 【色】画面全体（外側）の背景色 */
       display: flex;
       justify-content: center;
       align-items: center;
@@ -35,66 +35,45 @@
     canvas {
       width: 100%;
       height: 100%;
-      /* 【色】ゲーム画面の背景グラデーション（大空） */
+      /* 【色】ゲーム画面の背景グラデーション */
       background: linear-gradient(to bottom, #38bdf8, #bae6fd, #e0f2fe);
       display: block;
     }
-    /* コピーボタン */
-    #copy-btn {
+    /* もう一度あそぶボタン */
+    #retry-btn {
       display: none;
       position: absolute;
-      bottom: 50px;
+      bottom: 85px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 14px 32px;
-      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-      color: #ffffff;
-      font-size: 15px;
+      padding: 12px 28px;
+      background: #f1f5f9;
+      color: #0284c7;
+      font-size: 14px;
       font-weight: bold;
-      letter-spacing: 0.5px;
-      border: none;
-      border-radius: 30px;
-      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.35);
+      border: 1px solid #cbd5e1;
+      border-radius: 25px;
       cursor: pointer;
       z-index: 10;
       transition: all 0.2s ease;
     }
-    #copy-btn:active {
+    #retry-btn:active {
       transform: translateX(-50%) scale(0.95);
-      box-shadow: 0 3px 8px rgba(2, 132, 199, 0.3);
-    }
-    /* コピー完了トースト通知 */
-    #toast {
-      display: none;
-      position: absolute;
-      top: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 10px 20px;
-      background: rgba(16, 185, 129, 0.95);
-      color: #ffffff;
-      font-size: 14px;
-      font-weight: bold;
-      border-radius: 20px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-      z-index: 20;
-      backdrop-filter: blur(4px);
+      background-color: #e2e8f0;
     }
   </style>
 </head>
 <body>
 
 <div id="game-container">
-  <div id="toast">クリップボードにコピーしました！</div>
   <canvas id="gameCanvas" width="640" height="960"></canvas>
-  <button id="copy-btn">暗号をコピーする</button>
+  <button id="retry-btn">もう一度あそぶ</button>
 </div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const copyBtn = document.getElementById("copy-btn");
-const toast = document.getElementById("toast");
+const retryBtn = document.getElementById("retry-btn");
 
 // 高画質化（2倍スケール）の設定
 ctx.scale(2, 2);
@@ -108,8 +87,9 @@ let gameState = "START";
 let frames = 0;
 let passedPipesCount = 0;
 const TOTAL_PIPES_TO_GOAL = 7;
-const SECRET_CODE = "FUTURE-SEED-2026";
 let goalTimer = null;
+let gameStartTime = 0;
+let clearTimeFormatted = "0.0秒";
 
 // 背景キラキラ粒子用
 const particles = Array.from({ length: 15 }, () => ({
@@ -271,15 +251,13 @@ const pipes = {
     ctx.restore();
   },
 
-  // ★ グレー色のビルの描画 ★
   drawBuilding(x, y, width, height) {
-    ctx.fillStyle = "#475569"; /* 【色】ビルの壁（グレー） */
+    ctx.fillStyle = "#475569";
     ctx.fillRect(x, y, width, height);
-    ctx.strokeStyle = "#334155"; /* 【色】ビルの外枠線（ダークグレー） */
+    ctx.strokeStyle = "#334155";
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, width, height);
 
-    /* 【色】ビルの窓（グレー3種） */
     const windowColors = ["#94a3b8", "#cbd5e1", "#64748b"];
     let colorIdx = 0;
     for (let wy = y + 12; wy < y + height - 10; wy += 22) {
@@ -355,6 +333,9 @@ const pipes = {
         passedPipesCount++;
         if (passedPipesCount >= TOTAL_PIPES_TO_GOAL) {
           this.spawningActive = false;
+          // クリアタイム計算
+          const elapsedSec = ((Date.now() - gameStartTime) / 1000).toFixed(1);
+          clearTimeFormatted = `${elapsedSec} 秒`;
           triggerGoalScene();
         }
       }
@@ -372,7 +353,7 @@ const pipes = {
   }
 };
 
-// ゲーム中の空中背景
+// 空中背景
 function drawBackground() {
   ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
   ctx.beginPath();
@@ -481,7 +462,7 @@ function drawGoalScene() {
   ctx.fillText("荷物が無事に届けられました", V_WIDTH / 2, V_HEIGHT - 30);
 }
 
-// ゴール演出 2：白背景ベースのリッチな暗号画面（リザルト）
+// ★ ゴール演出 2：最終レポートカード ＆ 案内画面（白背景） ★
 function drawGoalResult() {
   // 1. クリーンな白〜薄水色の背景
   let bgGrad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
@@ -513,10 +494,10 @@ function drawGoalResult() {
 
   ctx.textAlign = "center";
 
-  // 4. メインヘッダーアイコン
+  // 4. トロフィー / メダルアイコン
   const pulse = Math.sin(frames * 0.05) * 3;
   ctx.save();
-  ctx.translate(V_WIDTH / 2, 110 + pulse);
+  ctx.translate(V_WIDTH / 2, 75 + pulse);
   ctx.shadowColor = "rgba(2, 132, 199, 0.25)";
   ctx.shadowBlur = 15;
   ctx.fillStyle = "#0284c7";
@@ -524,27 +505,26 @@ function drawGoalResult() {
   ctx.arc(0, 0, 22, 0, Math.PI * 2);
   ctx.fill();
   
+  // リボン＆チェックマーク
   ctx.fillStyle = "#ffffff";
-  ctx.beginPath();
-  ctx.arc(-4, 2, 6, 0, Math.PI * 2);
-  ctx.arc(4, -2, 8, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.font = "bold 18px Arial";
+  ctx.fillText("✓", 0, 6);
   ctx.restore();
 
-  // 5. タイトルテキスト
+  // 5. メインタイトル
   ctx.fillStyle = "#64748b";
-  ctx.font = "bold 13px Arial";
-  ctx.fillText("MISSION COMPLETE", V_WIDTH / 2, 160);
+  ctx.font = "bold 12px Arial";
+  ctx.fillText("DELIVERY COMPLETE", V_WIDTH / 2, 122);
 
   ctx.fillStyle = "#0f172a";
   ctx.font = "bold 20px Arial";
-  ctx.fillText("【未来の種】を受け取りました", V_WIDTH / 2, 188);
+  ctx.fillText("配達成功！", V_WIDTH / 2, 148);
 
-  // 6. 暗号カード
+  // 6. 成績レポートカード（白ベース＋美しいドロップシャドウ）
   const cardX = V_WIDTH / 2 - 130;
-  const cardY = 215;
+  const cardY = 170;
   const cardW = 260;
-  const cardH = 90;
+  const cardH = 120;
 
   ctx.save();
   ctx.shadowColor = "rgba(2, 132, 199, 0.12)";
@@ -560,23 +540,53 @@ function drawGoalResult() {
   borderGrad.addColorStop(0, "#38bdf8");
   borderGrad.addColorStop(1, "#0284c7");
   ctx.strokeStyle = borderGrad;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.roundRect(cardX, cardY, cardW, cardH, 16);
   ctx.stroke();
 
-  ctx.fillStyle = "#94a3b8";
-  ctx.font = "11px Arial";
-  ctx.fillText("SECRET CODE", V_WIDTH / 2, cardY + 28);
-
-  ctx.fillStyle = "#0284c7";
-  ctx.font = "bold 21px monospace";
-  ctx.fillText(SECRET_CODE, V_WIDTH / 2, cardY + 60);
-
-  // 7. 下部案内テキスト
+  // カード内コンテンツ
+  // フライト評価
   ctx.fillStyle = "#64748b";
   ctx.font = "12px Arial";
-  ctx.fillText("暗号をコピーして次の体験へお進みください", V_WIDTH / 2, 340);
+  ctx.fillText("FLIGHT RANK", V_WIDTH / 2 - 50, cardY + 35);
+  ctx.fillStyle = "#0284c7";
+  ctx.font = "bold 22px Arial";
+  ctx.fillText("RANK S", V_WIDTH / 2 - 50, cardY + 65);
+
+  ctx.fillStyle = "#f59e0b";
+  ctx.font = "14px Arial";
+  ctx.fillText("★ ★ ★", V_WIDTH / 2 - 50, cardY + 90);
+
+  // 区切り線
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(V_WIDTH / 2, cardY + 20);
+  ctx.lineTo(V_WIDTH / 2, cardY + 100);
+  ctx.stroke();
+
+  // クリアタイム
+  ctx.fillStyle = "#64748b";
+  ctx.font = "12px Arial";
+  ctx.fillText("TIME", V_WIDTH / 2 + 50, cardY + 35);
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "bold 18px monospace";
+  ctx.fillText(clearTimeFormatted, V_WIDTH / 2 + 50, cardY + 68);
+
+  // 7. ブラウザ閉じる案内（メッセージボックス風）
+  const msgBoxY = 310;
+  ctx.fillStyle = "rgba(2, 132, 199, 0.05)";
+  ctx.beginPath();
+  ctx.roundRect(cardX, msgBoxY, cardW, 60, 10);
+  ctx.fill();
+
+  ctx.fillStyle = "#0369a1";
+  ctx.font = "bold 13px Arial";
+  ctx.fillText("体験いただきありがとうございました", V_WIDTH / 2, msgBoxY + 26);
+  ctx.fillStyle = "#64748b";
+  ctx.font = "11px Arial";
+  ctx.fillText("タブ（ブラウザ）を閉じてモビリテスへお戻りください", V_WIDTH / 2, msgBoxY + 46);
 }
 
 // UI（スタート・ゲームオーバー）
@@ -613,13 +623,14 @@ function triggerGoalScene() {
 
   goalTimer = setTimeout(() => {
     gameState = "GOAL_RESULT";
-    copyBtn.style.display = "block";
+    retryBtn.style.display = "block";
   }, 4000);
 }
 
 function handleAction() {
   if (gameState === "START") {
     gameState = "PLAYING";
+    gameStartTime = Date.now();
     drone.flap();
   } else if (gameState === "PLAYING") {
     drone.flap();
@@ -628,26 +639,10 @@ function handleAction() {
   }
 }
 
-// ボタンクリック処理
-copyBtn.addEventListener("click", (e) => {
+retryBtn.addEventListener("click", (e) => {
   e.stopPropagation();
-  
-  navigator.clipboard.writeText(SECRET_CODE).then(() => {
-    showToast();
-  }).catch(() => {
-    showToast();
-  });
+  resetGameToStart();
 });
-
-function showToast() {
-  toast.style.display = "block";
-  copyBtn.innerText = "✓ コピー完了！";
-  copyBtn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
-  
-  setTimeout(() => {
-    toast.style.display = "none";
-  }, 3000);
-}
 
 function triggerGameOver() {
   gameState = "GAMEOVER";
@@ -658,9 +653,7 @@ function resetGameToStart() {
   drone.reset();
   pipes.reset();
   passedPipesCount = 0;
-  copyBtn.style.display = "none";
-  copyBtn.innerText = "暗号をコピーする";
-  copyBtn.style.background = "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)";
+  retryBtn.style.display = "none";
   gameState = "START";
 }
 
@@ -670,6 +663,7 @@ window.addEventListener("keydown", (e) => {
     handleAction();
   }
   if (e.key === "g" || e.key === "G") {
+    clearTimeFormatted = "12.4 秒";
     triggerGoalScene();
   }
 });
