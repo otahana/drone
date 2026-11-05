@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ドローン配達ゲーム - Drone Delivery</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background-color: #f1f5f9; /* 【色】画面全体（外側）の背景色（明るいグレー） */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+    }
+    #game-container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      height: 100vh;
+      max-height: 600px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1); /* 【色】ゲーム外枠の影 */
+      overflow: hidden;
+      border-radius: 12px;
+      background-color: #ffffff;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      /* 【色】ゲーム画面の背景グラデーション（大空） */
+      background: linear-gradient(to bottom, #38bdf8, #bae6fd, #e0f2fe);
+      display: block;
+    }
+    /* コピーボタン */
+    #copy-btn {
+      display: none;
+      position: absolute;
+      bottom: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 14px 32px;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      border: none;
+      border-radius: 30px;
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.35);
+      cursor: pointer;
+      z-index: 10;
+      transition: all 0.2s ease;
+    }
+    #copy-btn:active {
+      transform: translateX(-50%) scale(0.95);
+      box-shadow: 0 3px 8px rgba(2, 132, 199, 0.3);
+    }
+    /* コピー完了トースト通知 */
+    #toast {
+      display: none;
+      position: absolute;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      background: rgba(16, 185, 129, 0.95);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: bold;
+      border-radius: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+      z-index: 20;
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="toast">クリップボードにコピーしました！</div>
+  <canvas id="gameCanvas" width="640" height="960"></canvas>
+  <button id="copy-btn">暗号をコピーする</button>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const copyBtn = document.getElementById("copy-btn");
+const toast = document.getElementById("toast");
+
+// 高画質化（2倍スケール）の設定
+ctx.scale(2, 2);
+const V_WIDTH = 320;
+const V_HEIGHT = 480;
+
+const craneImg = new Image();
+craneImg.src = "img/kure-n.png";
+
+let gameState = "START";
+let frames = 0;
+let passedPipesCount = 0;
+const TOTAL_PIPES_TO_GOAL = 7;
+const SECRET_CODE = "FUTURE-SEED-2026";
+let goalTimer = null;
+
+// 背景キラキラ粒子用
+const particles = Array.from({ length: 15 }, () => ({
+  x: Math.random() * V_WIDTH,
+  y: Math.random() * V_HEIGHT,
+  size: Math.random() * 2.5 + 1,
+  speedY: Math.random() * 0.4 + 0.1,
+  opacity: Math.random() * 0.4 + 0.2
+}));
+
+// プレイヤー（自機ドローン）
+const drone = {
+  x: 50,
+  y: 180,
+  width: 30,
+  height: 24,
+  gravity: 0.18,
+  jump: -4.0,
+  velocity: 0,
+  rotation: 0,
+
+  draw() {
+    ctx.save();
+    ctx.translate(this.x + 15, this.y + 12);
+    
+    this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 8, this.velocity * 0.08));
+    ctx.rotate(this.rotation);
+
+    // 脚
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-12, -2); ctx.lineTo(-15, -10);
+    ctx.moveTo(12, -2);  ctx.lineTo(15, -10);
+    ctx.stroke();
+
+    // モーター
+    ctx.fillStyle = "#334155";
+    ctx.fillRect(-17, -12, 4, 3);
+    ctx.fillRect(13, -12, 4, 3);
+
+    // プロペラ
+    ctx.fillStyle = (Math.floor(frames / 2) % 2 === 0) ? "rgba(255,255,255,0.9)" : "rgba(100,116,139,0.4)";
+    ctx.fillRect(-21, -13, 12, 2);
+    ctx.fillRect(9, -13, 12, 2);
+
+    // 本体
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(-12, -6, 24, 10, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // ライト
+    ctx.fillStyle = "#0284c7";
+    ctx.beginPath();
+    ctx.arc(6, -1, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 紐
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 4); ctx.lineTo(0, 10);
+    ctx.stroke();
+
+    // 荷物
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(-5, 10, 10, 9);
+    ctx.strokeStyle = "#D8DCDF";
+    ctx.strokeRect(-5, 10, 10, 9);
+
+    ctx.restore();
+  },
+
+  update() {
+    this.velocity += this.gravity;
+    this.y += this.velocity;
+
+    if (this.y + this.height >= V_HEIGHT - 10) {
+      this.y = V_HEIGHT - 10 - this.height;
+      triggerGameOver();
+    }
+
+    if (this.y <= 0) {
+      this.y = 0;
+      this.velocity = 0;
+    }
+  },
+
+  flap() {
+    if (gameState === "PLAYING") {
+      this.velocity = this.jump;
+    }
+  },
+
+  reset() {
+    this.y = 180;
+    this.velocity = 0;
+    this.rotation = 0;
+  }
+};
+
+// 障害物
+const pipes = {
+  position: [],
+  width: 60,
+  gap: 155,
+  dx: 1.4,
+  spawningActive: true,
+
+  drawEnemyDrone(x, baseY, offsetFrame) {
+    const hoverY = baseY + Math.sin((frames + offsetFrame) * 0.08) * 6;
+
+    ctx.save();
+    ctx.translate(x + 30, hoverY);
+
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-12, -2); ctx.lineTo(-15, -10);
+    ctx.moveTo(12, -2);  ctx.lineTo(15, -10);
+    ctx.stroke();
+
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(-17, -12, 4, 3);
+    ctx.fillRect(13, -12, 4, 3);
+
+    ctx.fillStyle = (Math.floor(frames / 2) % 2 === 0) ? "rgba(148,163,184,0.8)" : "rgba(71,85,105,0.4)";
+    ctx.fillRect(-21, -13, 12, 2);
+    ctx.fillRect(9, -13, 12, 2);
+
+    ctx.fillStyle = "#475569";
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(-12, -6, 24, 10, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath();
+    ctx.arc(6, -1, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 4); ctx.lineTo(0, 10);
+    ctx.stroke();
+
+    ctx.fillStyle = "#64748b";
+    ctx.fillRect(-5, 10, 10, 9);
+    ctx.strokeStyle = "#475569";
+    ctx.strokeRect(-5, 10, 10, 9);
+
+    ctx.restore();
+  },
+
+  // ★ グレー色のビルの描画 ★
+  drawBuilding(x, y, width, height) {
+    ctx.fillStyle = "#475569"; /* 【色】ビルの壁（グレー） */
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = "#334155"; /* 【色】ビルの外枠線（ダークグレー） */
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, width, height);
+
+    /* 【色】ビルの窓（グレー3種） */
+    const windowColors = ["#94a3b8", "#cbd5e1", "#64748b"];
+    let colorIdx = 0;
+    for (let wy = y + 12; wy < y + height - 10; wy += 22) {
+      for (let wx = x + 10; wx < x + width - 10; wx += 16) {
+        ctx.fillStyle = windowColors[colorIdx % windowColors.length];
+        ctx.fillRect(wx, wy, 10, 12);
+        colorIdx++;
+      }
+    }
+  },
+
+  draw() {
+    for (let i = 0; i < this.position.length; i++) {
+      let p = this.position[i];
+      let topYPos = p.y;
+      let bottomYPos = p.y + this.gap;
+
+      this.drawEnemyDrone(p.x, topYPos - 25, p.offsetFrame);
+
+      ctx.strokeStyle = "#475569";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(p.x + 30, 0);
+      ctx.lineTo(p.x + 30, topYPos - 25);
+      ctx.stroke();
+
+      const availableHeight = V_HEIGHT - bottomYPos;
+
+      if (p.type === "crane") {
+        const craneWidth = Math.min(this.width, availableHeight * (200 / 300));
+        ctx.drawImage(craneImg, p.x + (this.width - craneWidth) / 2, bottomYPos, craneWidth, availableHeight);
+      } else {
+        this.drawBuilding(p.x, bottomYPos, this.width, availableHeight);
+      }
+    }
+  },
+
+  update() {
+    if (this.spawningActive && frames % 140 === 0) {
+      const minY = 60;
+      const maxY = V_HEIGHT - this.gap - 100;
+      const randomY = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
+
+      this.position.push({
+        x: V_WIDTH,
+        y: randomY,
+        passed: false,
+        offsetFrame: frames,
+        type: Math.random() > 0.5 ? "crane" : "building"
+      });
+    }
+
+    for (let i = 0; i < this.position.length; i++) {
+      let p = this.position[i];
+      p.x -= this.dx;
+
+      let droneLeft = drone.x + 4;
+      let droneRight = drone.x + drone.width - 4;
+      let droneTop = drone.y + 4;
+      let droneBottom = drone.y + drone.height - 4;
+
+      if (droneRight > p.x + 10 && droneLeft < p.x + this.width - 10) {
+        if (droneTop < p.y - 10) {
+          triggerGameOver();
+        }
+        if (droneBottom > p.y + this.gap + 12) {
+          triggerGameOver();
+        }
+      }
+
+      if (p.x + this.width < drone.x && !p.passed) {
+        p.passed = true;
+        passedPipesCount++;
+        if (passedPipesCount >= TOTAL_PIPES_TO_GOAL) {
+          this.spawningActive = false;
+          triggerGoalScene();
+        }
+      }
+
+      if (p.x + this.width <= 0) {
+        this.position.shift();
+        i--;
+      }
+    }
+  },
+
+  reset() {
+    this.position = [];
+    this.spawningActive = true;
+  }
+};
+
+// ゲーム中の空中背景
+function drawBackground() {
+  ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.beginPath();
+  ctx.arc((frames * 0.2) % (V_WIDTH + 100) - 50, 80, 24, 0, Math.PI * 2);
+  ctx.arc((frames * 0.2) % (V_WIDTH + 100) - 32, 72, 30, 0, Math.PI * 2);
+  ctx.arc((frames * 0.2) % (V_WIDTH + 100) - 10, 80, 24, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ゴール演出 1：畑到着画面（4秒間表示）
+function drawGoalScene() {
+  let grad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
+  grad.addColorStop(0, "#38bdf8");
+  grad.addColorStop(0.55, "#bae6fd");
+  grad.addColorStop(1, "#fef3c7");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+
+  // 畑の土
+  ctx.fillStyle = "#78350f";
+  ctx.fillRect(0, V_HEIGHT - 150, V_WIDTH, 150);
+
+  // 畝と芽
+  ctx.strokeStyle = "#92400e";
+  ctx.lineWidth = 10;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, V_HEIGHT - 130 + i * 26);
+    ctx.lineTo(V_WIDTH, V_HEIGHT - 130 + i * 26);
+    ctx.stroke();
+
+    ctx.fillStyle = "#22c55e";
+    for (let sproutX = 20; sproutX < V_WIDTH; sproutX += 45) {
+      ctx.beginPath();
+      ctx.arc(sproutX, V_HEIGHT - 135 + i * 26, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // メッセージ
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "bold 22px Arial";
+  ctx.fillText("畑に到着！配達完了", V_WIDTH / 2, 80);
+
+  // 影
+  const hoverOffset = Math.sin(frames * 0.08) * 8;
+  const centerX = V_WIDTH / 2;
+  const centerY = V_HEIGHT / 2 - 10 + hoverOffset;
+
+  const shadowY = V_HEIGHT - 80;
+  const shadowScale = 1 - (hoverOffset / 40);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+  ctx.beginPath();
+  ctx.ellipse(centerX, shadowY, 32 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ドローン
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.scale(0.85, 0.85);
+
+  ctx.strokeStyle = "#475569";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-12, -2); ctx.lineTo(-15, -10);
+  ctx.moveTo(12, -2);  ctx.lineTo(15, -10);
+  ctx.stroke();
+
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(-17, -12, 4, 3);
+  ctx.fillRect(13, -12, 4, 3);
+
+  ctx.fillStyle = (Math.floor(frames / 2) % 2 === 0) ? "rgba(100,116,139,0.8)" : "rgba(203,213,225,0.5)";
+  ctx.fillRect(-21, -13, 12, 2);
+  ctx.fillRect(9, -13, 12, 2);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#94a3b8";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(-12, -6, 24, 10, 3);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#0284c7";
+  ctx.beginPath();
+  ctx.arc(6, -1, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 4); ctx.lineTo(0, 10);
+  ctx.stroke();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(-5, 10, 10, 9);
+  ctx.strokeStyle = "#D8DCDF";
+  ctx.strokeRect(-5, 10, 10, 9);
+
+  ctx.restore();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 15px Arial";
+  ctx.fillText("荷物が無事に届けられました", V_WIDTH / 2, V_HEIGHT - 30);
+}
+
+// ゴール演出 2：白背景ベースのリッチな暗号画面（リザルト）
+function drawGoalResult() {
+  // 1. クリーンな白〜薄水色の背景
+  let bgGrad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
+  bgGrad.addColorStop(0, "#ffffff");
+  bgGrad.addColorStop(0.6, "#f0f9ff");
+  bgGrad.addColorStop(1, "#e0f2fe");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+
+  // 2. うっすら浮かぶグリッドライン
+  ctx.strokeStyle = "rgba(2, 132, 199, 0.06)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x < V_WIDTH; x += 20) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, V_HEIGHT); ctx.stroke();
+  }
+  for (let y = 0; y < V_HEIGHT; y += 20) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(V_WIDTH, y); ctx.stroke();
+  }
+
+  // 3. 浮遊する柔らかな光粒子
+  particles.forEach(p => {
+    p.y -= p.speedY;
+    if (p.y < 0) p.y = V_HEIGHT;
+    ctx.fillStyle = `rgba(2, 132, 199, ${p.opacity * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.textAlign = "center";
+
+  // 4. メインヘッダーアイコン
+  const pulse = Math.sin(frames * 0.05) * 3;
+  ctx.save();
+  ctx.translate(V_WIDTH / 2, 110 + pulse);
+  ctx.shadowColor = "rgba(2, 132, 199, 0.25)";
+  ctx.shadowBlur = 15;
+  ctx.fillStyle = "#0284c7";
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(-4, 2, 6, 0, Math.PI * 2);
+  ctx.arc(4, -2, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 5. タイトルテキスト
+  ctx.fillStyle = "#64748b";
+  ctx.font = "bold 13px Arial";
+  ctx.fillText("MISSION COMPLETE", V_WIDTH / 2, 160);
+
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "bold 20px Arial";
+  ctx.fillText("【未来の種】を受け取りました", V_WIDTH / 2, 188);
+
+  // 6. 暗号カード
+  const cardX = V_WIDTH / 2 - 130;
+  const cardY = 215;
+  const cardW = 260;
+  const cardH = 90;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(2, 132, 199, 0.12)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+  ctx.fill();
+  ctx.restore();
+
+  let borderGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardW, cardY + cardH);
+  borderGrad.addColorStop(0, "#38bdf8");
+  borderGrad.addColorStop(1, "#0284c7");
+  ctx.strokeStyle = borderGrad;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(cardX, cardY, cardW, cardH, 16);
+  ctx.stroke();
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "11px Arial";
+  ctx.fillText("SECRET CODE", V_WIDTH / 2, cardY + 28);
+
+  ctx.fillStyle = "#0284c7";
+  ctx.font = "bold 21px monospace";
+  ctx.fillText(SECRET_CODE, V_WIDTH / 2, cardY + 60);
+
+  // 7. 下部案内テキスト
+  ctx.fillStyle = "#64748b";
+  ctx.font = "12px Arial";
+  ctx.fillText("暗号をコピーして次の体験へお進みください", V_WIDTH / 2, 340);
+}
+
+// UI（スタート・ゲームオーバー）
+function drawUI() {
+  ctx.textAlign = "center";
+
+  if (gameState === "START") {
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 22px Arial";
+    ctx.fillText("荷物を届けよう", V_WIDTH / 2, 200);
+
+    ctx.fillStyle = "#0369a1";
+    ctx.font = "bold 16px Arial";
+    ctx.fillText("はじめる", V_WIDTH / 2, 250);
+    ctx.font = "12px Arial";
+    ctx.fillStyle = "#475569";
+    ctx.fillText("（タップ または スペースキー）", V_WIDTH / 2, 275);
+
+  } else if (gameState === "GAMEOVER") {
+    ctx.fillStyle = "#dc2626";
+    ctx.font = "bold 28px Arial";
+    ctx.fillText("もう一回", V_WIDTH / 2, 220);
+
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "13px Arial";
+    ctx.fillText("タップ または スペースキーで", V_WIDTH / 2, 260);
+    ctx.fillText("「はじめる」に戻る", V_WIDTH / 2, 280);
+  }
+}
+
+function triggerGoalScene() {
+  gameState = "GOAL_SCENE";
+  if (goalTimer) clearTimeout(goalTimer);
+
+  goalTimer = setTimeout(() => {
+    gameState = "GOAL_RESULT";
+    copyBtn.style.display = "block";
+  }, 4000);
+}
+
+function handleAction() {
+  if (gameState === "START") {
+    gameState = "PLAYING";
+    drone.flap();
+  } else if (gameState === "PLAYING") {
+    drone.flap();
+  } else if (gameState === "GAMEOVER") {
+    resetGameToStart();
+  }
+}
+
+// ボタンクリック処理
+copyBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  
+  navigator.clipboard.writeText(SECRET_CODE).then(() => {
+    showToast();
+  }).catch(() => {
+    showToast();
+  });
+});
+
+function showToast() {
+  toast.style.display = "block";
+  copyBtn.innerText = "✓ コピー完了！";
+  copyBtn.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
+  
+  setTimeout(() => {
+    toast.style.display = "none";
+  }, 3000);
+}
+
+function triggerGameOver() {
+  gameState = "GAMEOVER";
+}
+
+function resetGameToStart() {
+  if (goalTimer) clearTimeout(goalTimer);
+  drone.reset();
+  pipes.reset();
+  passedPipesCount = 0;
+  copyBtn.style.display = "none";
+  copyBtn.innerText = "暗号をコピーする";
+  copyBtn.style.background = "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)";
+  gameState = "START";
+}
+
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    e.preventDefault();
+    handleAction();
+  }
+  if (e.key === "g" || e.key === "G") {
+    triggerGoalScene();
+  }
+});
+
+window.addEventListener("touchstart", (e) => {
+  if (gameState === "GOAL_SCENE" || gameState === "GOAL_RESULT") return;
+  e.preventDefault();
+  handleAction();
+}, { passive: false });
+
+window.addEventListener("mousedown", (e) => {
+  if (gameState === "GOAL_SCENE" || gameState === "GOAL_RESULT") return;
+  handleAction();
+});
+
+function loop() {
+  ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
+
+  if (gameState === "GOAL_SCENE") {
+    drawGoalScene();
+  } else if (gameState === "GOAL_RESULT") {
+    drawGoalResult();
+  } else {
+    drawBackground();
+
+    if (gameState === "PLAYING") {
+      pipes.update();
+      drone.update();
+    }
+
+    pipes.draw();
+    drone.draw();
+    drawUI();
+  }
+
+  frames++;
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
