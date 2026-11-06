@@ -27,7 +27,7 @@
       max-width: 400px;
       height: 100vh;
       max-height: 600px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1); /* 【色】ゲーム外枠の影 */
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
       overflow: hidden;
       border-radius: 12px;
       background-color: #ffffff;
@@ -35,7 +35,6 @@
     canvas {
       width: 100%;
       height: 100%;
-      /* 【色】ゲーム画面の背景グラデーション */
       background: linear-gradient(to bottom, #38bdf8, #bae6fd, #e0f2fe);
       display: block;
     }
@@ -88,8 +87,6 @@ let frames = 0;
 let passedPipesCount = 0;
 const TOTAL_PIPES_TO_GOAL = 7;
 let goalTimer = null;
-let gameStartTime = 0;
-let clearTimeFormatted = "0.0秒";
 
 // 背景キラキラ粒子用
 const particles = Array.from({ length: 15 }, () => ({
@@ -333,9 +330,6 @@ const pipes = {
         passedPipesCount++;
         if (passedPipesCount >= TOTAL_PIPES_TO_GOAL) {
           this.spawningActive = false;
-          // クリアタイム計算
-          const elapsedSec = ((Date.now() - gameStartTime) / 1000).toFixed(1);
-          clearTimeFormatted = `${elapsedSec} 秒`;
           triggerGoalScene();
         }
       }
@@ -363,50 +357,124 @@ function drawBackground() {
   ctx.fill();
 }
 
-// ゴール演出 1：畑到着画面（4秒間表示）
+// ★ ファンテックラボ（FUN-TECH LABO）着陸シーン ★
 function drawGoalScene() {
+  // 1. 爽やかな青空
   let grad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
   grad.addColorStop(0, "#38bdf8");
-  grad.addColorStop(0.55, "#bae6fd");
-  grad.addColorStop(1, "#fef3c7");
+  grad.addColorStop(0.5, "#bae6fd");
+  grad.addColorStop(1, "#f1f5f9");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
 
-  // 畑の土
-  ctx.fillStyle = "#78350f";
-  ctx.fillRect(0, V_HEIGHT - 150, V_WIDTH, 150);
-
-  // 畝と芽
-  ctx.strokeStyle = "#92400e";
-  ctx.lineWidth = 10;
-  for (let i = 0; i < 5; i++) {
-    ctx.beginPath();
-    ctx.moveTo(0, V_HEIGHT - 130 + i * 26);
-    ctx.lineTo(V_WIDTH, V_HEIGHT - 130 + i * 26);
-    ctx.stroke();
-
-    ctx.fillStyle = "#22c55e";
-    for (let sproutX = 20; sproutX < V_WIDTH; sproutX += 45) {
-      ctx.beginPath();
-      ctx.arc(sproutX, V_HEIGHT - 135 + i * 26, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  // 2. 奥の緑フェンス壁
+  ctx.fillStyle = "#15803d";
+  ctx.fillRect(100, 220, 120, 70);
+  ctx.strokeStyle = "#166534";
+  ctx.lineWidth = 1;
+  for (let x = 105; x < 220; x += 10) {
+    ctx.beginPath(); ctx.moveTo(x, 220); ctx.lineTo(x, 290); ctx.stroke();
   }
 
-  // メッセージ
+  // 3. 中央の白屋根通路
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(110, 210, 100, 10); // 屋根
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(110, 210, 100, 10);
+
+  // 柱
+  ctx.strokeStyle = "#94a3b8";
+  ctx.lineWidth = 2.5;
+  for (let px = 120; px <= 200; px += 26) {
+    ctx.beginPath(); ctx.moveTo(px, 220); ctx.lineTo(px, 290); ctx.stroke();
+  }
+
+  // 4. 左側の建物（AMAI）
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.moveTo(-20, 180);
+  ctx.lineTo(110, 205);
+  ctx.lineTo(105, 300);
+  ctx.lineTo(-20, 300);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 左ガラス窓
+  ctx.fillStyle = "rgba(186, 230, 253, 0.4)";
+  ctx.fillRect(-15, 205, 110, 75);
+  ctx.strokeStyle = "#94a3b8";
+  ctx.strokeRect(-15, 205, 110, 75);
+
+  // AMAIロゴ
+  ctx.fillStyle = "#64748b";
+  ctx.font = "bold 13px Arial";
+  ctx.fillText("AMAI", 15, 225);
+
+  // 5. 右側の建物（FUN-TECH LABO）
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.moveTo(210, 205);
+  ctx.lineTo(340, 180);
+  ctx.lineTo(340, 300);
+  ctx.lineTo(215, 300);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 右ガラス窓
+  ctx.fillStyle = "rgba(186, 230, 253, 0.4)";
+  ctx.fillRect(220, 205, 110, 75);
+  ctx.strokeStyle = "#94a3b8";
+  ctx.strokeRect(220, 205, 110, 75);
+
+  // FUN-TECH LABO カラフルロゴ
+  ctx.font = "bold 13px Arial";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#38bdf8"; ctx.fillText("FUN-", 225, 228);
+  ctx.fillStyle = "#22c55e"; ctx.fillText("TECH ", 257, 228);
+  ctx.fillStyle = "#eab308"; ctx.fillText("LABO", 294, 228);
+
+  // 6. 手前のアプローチアスファルト地面
+  ctx.fillStyle = "#64748b";
+  ctx.beginPath();
+  ctx.moveTo(0, 290);
+  ctx.lineTo(V_WIDTH, 290);
+  ctx.lineTo(V_WIDTH, V_HEIGHT);
+  ctx.lineTo(0, V_HEIGHT);
+  ctx.closePath();
+  ctx.fill();
+
+  // ステップ階段
+  ctx.fillStyle = "#cbd5e1";
+  ctx.fillRect(40, 285, 240, 6);
+
+  // ヘリポート風マーク（H）
   ctx.textAlign = "center";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(V_WIDTH / 2, V_HEIGHT - 40, 16, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // メッセージ
   ctx.fillStyle = "#0f172a";
-  ctx.font = "bold 22px Arial";
-  ctx.fillText("畑に到着！配達完了", V_WIDTH / 2, 80);
+  ctx.font = "bold 20px Arial";
+  ctx.fillText("ファンテックラボに到着！", V_WIDTH / 2, 60);
 
   // 影
-  const hoverOffset = Math.sin(frames * 0.08) * 8;
+  const hoverOffset = Math.sin(frames * 0.08) * 6;
   const centerX = V_WIDTH / 2;
-  const centerY = V_HEIGHT / 2 - 10 + hoverOffset;
+  const centerY = V_HEIGHT / 2 + 50 + hoverOffset;
 
-  const shadowY = V_HEIGHT - 80;
-  const shadowScale = 1 - (hoverOffset / 40);
-  ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+  const shadowY = V_HEIGHT - 40;
+  const shadowScale = 1 - (hoverOffset / 30);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
   ctx.beginPath();
   ctx.ellipse(centerX, shadowY, 32 * shadowScale, 8 * shadowScale, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -414,7 +482,7 @@ function drawGoalScene() {
   // ドローン
   ctx.save();
   ctx.translate(centerX, centerY);
-  ctx.scale(0.85, 0.85);
+  ctx.scale(0.9, 0.9);
 
   ctx.strokeStyle = "#475569";
   ctx.lineWidth = 2;
@@ -458,13 +526,12 @@ function drawGoalScene() {
   ctx.restore();
 
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 15px Arial";
-  ctx.fillText("荷物が無事に届けられました", V_WIDTH / 2, V_HEIGHT - 30);
+  ctx.font = "bold 14px Arial";
+  ctx.fillText("荷物が無事に届けられました", V_WIDTH / 2, V_HEIGHT - 12);
 }
 
-// ★ ゴール演出 2：最終レポートカード ＆ 案内画面（白背景） ★
+// ★ リザルト画面（白背景・案内） ★
 function drawGoalResult() {
-  // 1. クリーンな白〜薄水色の背景
   let bgGrad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
   bgGrad.addColorStop(0, "#ffffff");
   bgGrad.addColorStop(0.6, "#f0f9ff");
@@ -472,7 +539,6 @@ function drawGoalResult() {
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
 
-  // 2. うっすら浮かぶグリッドライン
   ctx.strokeStyle = "rgba(2, 132, 199, 0.06)";
   ctx.lineWidth = 1;
   for (let x = 0; x < V_WIDTH; x += 20) {
@@ -482,7 +548,6 @@ function drawGoalResult() {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(V_WIDTH, y); ctx.stroke();
   }
 
-  // 3. 浮遊する柔らかな光粒子
   particles.forEach(p => {
     p.y -= p.speedY;
     if (p.y < 0) p.y = V_HEIGHT;
@@ -494,37 +559,33 @@ function drawGoalResult() {
 
   ctx.textAlign = "center";
 
-  // 4. トロフィー / メダルアイコン
   const pulse = Math.sin(frames * 0.05) * 3;
   ctx.save();
-  ctx.translate(V_WIDTH / 2, 75 + pulse);
+  ctx.translate(V_WIDTH / 2, 105 + pulse);
   ctx.shadowColor = "rgba(2, 132, 199, 0.25)";
   ctx.shadowBlur = 15;
   ctx.fillStyle = "#0284c7";
   ctx.beginPath();
-  ctx.arc(0, 0, 22, 0, Math.PI * 2);
+  ctx.arc(0, 0, 24, 0, Math.PI * 2);
   ctx.fill();
   
-  // リボン＆チェックマーク
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 18px Arial";
-  ctx.fillText("✓", 0, 6);
+  ctx.font = "bold 20px Arial";
+  ctx.fillText("✓", 0, 7);
   ctx.restore();
 
-  // 5. メインタイトル
   ctx.fillStyle = "#64748b";
   ctx.font = "bold 12px Arial";
-  ctx.fillText("DELIVERY COMPLETE", V_WIDTH / 2, 122);
+  ctx.fillText("FUN-TECH LABO ARRIVAL", V_WIDTH / 2, 155);
 
   ctx.fillStyle = "#0f172a";
-  ctx.font = "bold 20px Arial";
-  ctx.fillText("配達成功！", V_WIDTH / 2, 148);
+  ctx.font = "bold 22px Arial";
+  ctx.fillText("配達成功！", V_WIDTH / 2, 185);
 
-  // 6. 成績レポートカード（白ベース＋美しいドロップシャドウ）
   const cardX = V_WIDTH / 2 - 130;
-  const cardY = 170;
+  const cardY = 210;
   const cardW = 260;
-  const cardH = 120;
+  const cardH = 80;
 
   ctx.save();
   ctx.shadowColor = "rgba(2, 132, 199, 0.12)";
@@ -545,36 +606,10 @@ function drawGoalResult() {
   ctx.roundRect(cardX, cardY, cardW, cardH, 16);
   ctx.stroke();
 
-  // カード内コンテンツ
-  // フライト評価
-  ctx.fillStyle = "#64748b";
-  ctx.font = "12px Arial";
-  ctx.fillText("FLIGHT RANK", V_WIDTH / 2 - 50, cardY + 35);
   ctx.fillStyle = "#0284c7";
-  ctx.font = "bold 22px Arial";
-  ctx.fillText("RANK S", V_WIDTH / 2 - 50, cardY + 65);
+  ctx.font = "bold 15px Arial";
+  ctx.fillText("荷物は無事に届きました", V_WIDTH / 2, cardY + 46);
 
-  ctx.fillStyle = "#f59e0b";
-  ctx.font = "14px Arial";
-  ctx.fillText("★ ★ ★", V_WIDTH / 2 - 50, cardY + 90);
-
-  // 区切り線
-  ctx.strokeStyle = "#e2e8f0";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(V_WIDTH / 2, cardY + 20);
-  ctx.lineTo(V_WIDTH / 2, cardY + 100);
-  ctx.stroke();
-
-  // クリアタイム
-  ctx.fillStyle = "#64748b";
-  ctx.font = "12px Arial";
-  ctx.fillText("TIME", V_WIDTH / 2 + 50, cardY + 35);
-  ctx.fillStyle = "#0f172a";
-  ctx.font = "bold 18px monospace";
-  ctx.fillText(clearTimeFormatted, V_WIDTH / 2 + 50, cardY + 68);
-
-  // 7. ブラウザ閉じる案内（メッセージボックス風）
   const msgBoxY = 310;
   ctx.fillStyle = "rgba(2, 132, 199, 0.05)";
   ctx.beginPath();
@@ -630,7 +665,6 @@ function triggerGoalScene() {
 function handleAction() {
   if (gameState === "START") {
     gameState = "PLAYING";
-    gameStartTime = Date.now();
     drone.flap();
   } else if (gameState === "PLAYING") {
     drone.flap();
@@ -663,7 +697,6 @@ window.addEventListener("keydown", (e) => {
     handleAction();
   }
   if (e.key === "g" || e.key === "G") {
-    clearTimeFormatted = "12.4 秒";
     triggerGoalScene();
   }
 });
