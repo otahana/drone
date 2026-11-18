@@ -38,26 +38,53 @@
       background: linear-gradient(to bottom, #38bdf8, #bae6fd, #e0f2fe);
       display: block;
     }
-    /* もう一度あそぶボタン */
-    #retry-btn {
+    /* ボタンエリア（リザルト画面用） */
+    #result-actions {
       display: none;
       position: absolute;
-      bottom: 85px;
+      bottom: 42px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 12px 28px;
-      background: #f1f5f9;
-      color: #0284c7;
-      font-size: 14px;
+      width: 82%;
+      max-width: 280px;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+    }
+    /* メインボタン（リンク遷移用） */
+    #next-link-btn {
+      display: block;
+      width: 100%;
+      padding: 15px 20px;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: bold;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 30px;
+      box-shadow: 0 8px 20px rgba(2, 132, 199, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    #next-link-btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 4px 10px rgba(2, 132, 199, 0.25);
+    }
+    /* サブボタン（もう一度あそぶ） */
+    #retry-btn {
+      padding: 8px 20px;
+      background: rgba(255, 255, 255, 0.85);
+      color: #64748b;
+      font-size: 12px;
       font-weight: bold;
       border: 1px solid #cbd5e1;
-      border-radius: 25px;
+      border-radius: 20px;
       cursor: pointer;
-      z-index: 10;
-      transition: all 0.2s ease;
+      transition: all 0.15s ease;
     }
     #retry-btn:active {
-      transform: translateX(-50%) scale(0.95);
+      transform: scale(0.95);
       background-color: #e2e8f0;
     }
   </style>
@@ -66,12 +93,16 @@
 
 <div id="game-container">
   <canvas id="gameCanvas" width="640" height="960"></canvas>
-  <button id="retry-btn">もう一度あそぶ</button>
+  <div id="result-actions">
+    <a id="next-link-btn" href="https://lil18325.github.io/2040rinia/">次へ進む →</a>
+    <button id="retry-btn">もう一度あそぶ</button>
+  </div>
 </div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const resultActions = document.getElementById("result-actions");
 const retryBtn = document.getElementById("retry-btn");
 
 // 高画質化（2倍スケール）の設定
@@ -357,9 +388,8 @@ function drawBackground() {
   ctx.fill();
 }
 
-// ★ ファンテックラボ（FUN-TECH LABO）着陸シーン ★
+// ファンテックラボ（FUN-TECH LABO）着陸シーン
 function drawGoalScene() {
-  // 1. 爽やかな青空
   let grad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
   grad.addColorStop(0, "#38bdf8");
   grad.addColorStop(0.5, "#bae6fd");
@@ -367,7 +397,7 @@ function drawGoalScene() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
 
-  // 2. 奥の緑フェンス壁
+  // 奥の緑フェンス壁
   ctx.fillStyle = "#15803d";
   ctx.fillRect(100, 220, 120, 70);
   ctx.strokeStyle = "#166534";
@@ -376,9 +406,9 @@ function drawGoalScene() {
     ctx.beginPath(); ctx.moveTo(x, 220); ctx.lineTo(x, 290); ctx.stroke();
   }
 
-  // 3. 中央の白屋根通路
+  // 中央の白屋根通路
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(110, 210, 100, 10); // 屋根
+  ctx.fillRect(110, 210, 100, 10);
   ctx.strokeStyle = "#cbd5e1";
   ctx.lineWidth = 1.5;
   ctx.strokeRect(110, 210, 100, 10);
@@ -390,7 +420,7 @@ function drawGoalScene() {
     ctx.beginPath(); ctx.moveTo(px, 220); ctx.lineTo(px, 290); ctx.stroke();
   }
 
-  // 4. 左側の建物（AMAI）
+  // 左側の建物（AMAI）
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
   ctx.moveTo(-20, 180);
@@ -412,9 +442,10 @@ function drawGoalScene() {
   // AMAIロゴ
   ctx.fillStyle = "#64748b";
   ctx.font = "bold 13px Arial";
+  ctx.textAlign = "left";
   ctx.fillText("AMAI", 15, 225);
 
-  // 5. 右側の建物（FUN-TECH LABO）
+  // 右側の建物（FUN-TECH LABO）
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
   ctx.moveTo(210, 205);
@@ -440,7 +471,7 @@ function drawGoalScene() {
   ctx.fillStyle = "#22c55e"; ctx.fillText("TECH ", 257, 228);
   ctx.fillStyle = "#eab308"; ctx.fillText("LABO", 294, 228);
 
-  // 6. 手前のアプローチアスファルト地面
+  // 手前のアプローチアスファルト地面
   ctx.fillStyle = "#64748b";
   ctx.beginPath();
   ctx.moveTo(0, 290);
@@ -454,7 +485,7 @@ function drawGoalScene() {
   ctx.fillStyle = "#cbd5e1";
   ctx.fillRect(40, 285, 240, 6);
 
-  // ヘリポート風マーク（H）
+  // ヘリポート風マーク
   ctx.textAlign = "center";
   ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
   ctx.lineWidth = 2.5;
@@ -530,7 +561,7 @@ function drawGoalScene() {
   ctx.fillText("荷物が無事に届けられました", V_WIDTH / 2, V_HEIGHT - 12);
 }
 
-// ★ リザルト画面（白背景・案内） ★
+// ★ リザルト画面（白背景・リンクボタン配置） ★
 function drawGoalResult() {
   let bgGrad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
   bgGrad.addColorStop(0, "#ffffff");
@@ -559,9 +590,10 @@ function drawGoalResult() {
 
   ctx.textAlign = "center";
 
+  // チェックマークアイコン
   const pulse = Math.sin(frames * 0.05) * 3;
   ctx.save();
-  ctx.translate(V_WIDTH / 2, 105 + pulse);
+  ctx.translate(V_WIDTH / 2, 85 + pulse);
   ctx.shadowColor = "rgba(2, 132, 199, 0.25)";
   ctx.shadowBlur = 15;
   ctx.fillStyle = "#0284c7";
@@ -574,18 +606,20 @@ function drawGoalResult() {
   ctx.fillText("✓", 0, 7);
   ctx.restore();
 
+  // タイトル
   ctx.fillStyle = "#64748b";
   ctx.font = "bold 12px Arial";
-  ctx.fillText("FUN-TECH LABO ARRIVAL", V_WIDTH / 2, 155);
+  ctx.fillText("FUN-TECH LABO ARRIVAL", V_WIDTH / 2, 132);
 
   ctx.fillStyle = "#0f172a";
   ctx.font = "bold 22px Arial";
-  ctx.fillText("配達成功！", V_WIDTH / 2, 185);
+  ctx.fillText("配達成功！", V_WIDTH / 2, 160);
 
+  // メッセージカード
   const cardX = V_WIDTH / 2 - 130;
-  const cardY = 210;
+  const cardY = 182;
   const cardW = 260;
-  const cardH = 80;
+  const cardH = 86;
 
   ctx.save();
   ctx.shadowColor = "rgba(2, 132, 199, 0.12)";
@@ -608,20 +642,11 @@ function drawGoalResult() {
 
   ctx.fillStyle = "#0284c7";
   ctx.font = "bold 15px Arial";
-  ctx.fillText("荷物は無事に届きました", V_WIDTH / 2, cardY + 46);
+  ctx.fillText("ファンテックラボへ届きました", V_WIDTH / 2, cardY + 36);
 
-  const msgBoxY = 310;
-  ctx.fillStyle = "rgba(2, 132, 199, 0.05)";
-  ctx.beginPath();
-  ctx.roundRect(cardX, msgBoxY, cardW, 60, 10);
-  ctx.fill();
-
-  ctx.fillStyle = "#0369a1";
-  ctx.font = "bold 13px Arial";
-  ctx.fillText("体験いただきありがとうございました", V_WIDTH / 2, msgBoxY + 26);
   ctx.fillStyle = "#64748b";
   ctx.font = "11px Arial";
-  ctx.fillText("タブ（ブラウザ）を閉じてモビリテスへお戻りください", V_WIDTH / 2, msgBoxY + 46);
+  ctx.fillText("下のボタンから次の体験へお進みください", V_WIDTH / 2, cardY + 60);
 }
 
 // UI（スタート・ゲームオーバー）
@@ -658,7 +683,7 @@ function triggerGoalScene() {
 
   goalTimer = setTimeout(() => {
     gameState = "GOAL_RESULT";
-    retryBtn.style.display = "block";
+    resultActions.style.display = "flex";
   }, 4000);
 }
 
@@ -687,7 +712,7 @@ function resetGameToStart() {
   drone.reset();
   pipes.reset();
   passedPipesCount = 0;
-  retryBtn.style.display = "none";
+  resultActions.style.display = "none";
   gameState = "START";
 }
 
