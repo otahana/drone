@@ -129,6 +129,8 @@ let frames = 0;
 let passedPipesCount = 0;
 const TOTAL_PIPES_TO_GOAL = 7;
 let goalTimer = null;
+let goalStartTime = 0;
+const GOAL_SCENE_DURATION = 4000; // 4秒間表示
 
 // 総飛行距離（ピクセル換算で残り距離を計算）
 const PIPE_INTERVAL_PX = 140 * 1.4; // 196px
@@ -240,7 +242,7 @@ const drone = {
   }
 };
 
-// ★ ゴールゲート（7つ目の障害物の後に登場する分かりやすいゴールアーチ） ★
+// ゴールゲート
 const goalGate = {
   active: false,
   x: V_WIDTH + 60,
@@ -260,7 +262,6 @@ const goalGate = {
     if (!this.active) return;
     this.x -= pipes.dx;
 
-    // ドローンがゴールゲートの中央を通過したらゴール！
     if (drone.x + drone.width / 2 >= this.x + 18) {
       this.active = false;
       triggerGoalScene();
@@ -278,7 +279,6 @@ const goalGate = {
 
     ctx.save();
 
-    // 1. ゲート内側の光のカーテン（通過エリアを分かりやすく強調）
     const glowGrad = ctx.createLinearGradient(gateX, topY, gateX + gateW, topY);
     glowGrad.addColorStop(0, "rgba(255, 255, 255, 0.1)");
     glowGrad.addColorStop(0.5, "rgba(255, 255, 255, 0.45)");
@@ -286,19 +286,16 @@ const goalGate = {
     ctx.fillStyle = glowGrad;
     ctx.fillRect(gateX + 8, topY, gateW - 16, gateH);
 
-    // 2. 左右のチェックフラッグ風ポール
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(gateX + 4, topY, 6, gateH + 20);
     ctx.fillRect(gateX + gateW - 10, topY, 6, gateH + 20);
 
-    // ポールのストライプ装飾
     ctx.fillStyle = "#0284c7";
     for (let sy = topY + 10; sy < bottomY + 10; sy += 24) {
       ctx.fillRect(gateX + 4, sy, 6, 12);
       ctx.fillRect(gateX + gateW - 10, sy, 6, 12);
     }
 
-    // 3. 上部の「GOAL」アーチ看板
     ctx.shadowColor = "rgba(2, 132, 199, 0.35)";
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 3;
@@ -319,13 +316,11 @@ const goalGate = {
     ctx.textAlign = "center";
     ctx.fillText("GOAL", gateX + gateW / 2, topY - 5);
 
-    // 4. 中央の誘導矢印（点滅アニメーション）
     const arrowAlpha = 0.5 + Math.sin(frames * 0.15) * 0.5;
     ctx.fillStyle = `rgba(2, 132, 199, ${arrowAlpha})`;
     ctx.font = "bold 18px Arial";
     ctx.fillText("▶▶", gateX + gateW / 2, (topY + bottomY) / 2 + 6);
 
-    // 5. 下部の「ファンテックラボ」着陸マット表示
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.roundRect(gateX - 14, bottomY, gateW + 28, 24, 12);
@@ -461,7 +456,6 @@ const pipes = {
         });
         this.spawnedCount++;
       } else {
-        // 全障害物を出し終えたらゴールゲートを出現させる
         this.spawningActive = false;
         goalGate.spawn();
       }
@@ -514,20 +508,17 @@ function drawBackground() {
   ctx.fill();
 }
 
-// ★ 上部のゴールまでの距離ゲージ（HUD） ★
+// 上部のゴールまでの距離ゲージ（HUD）
 function drawDistanceHUD() {
   const hudX = 16;
   const hudY = 14;
   const hudW = V_WIDTH - 32;
   const hudH = 42;
 
-  // 進捗率（0.0 〜 1.0）
   const progress = Math.min(1, Math.max(0, traveledPx / TOTAL_DISTANCE_PX));
-  // 残り距離（最大350mから0mまでカウントダウン）
   const remainingMeters = Math.max(0, Math.ceil((1 - progress) * 350));
 
   ctx.save();
-  // 背景ピルカード
   ctx.shadowColor = "rgba(2, 132, 199, 0.14)";
   ctx.shadowBlur = 10;
   ctx.shadowOffsetY = 3;
@@ -543,13 +534,11 @@ function drawDistanceHUD() {
   ctx.roundRect(hudX, hudY, hudW, hudH, 14);
   ctx.stroke();
 
-  // 左テキスト：目的地ラベル
   ctx.textAlign = "left";
   ctx.fillStyle = "#64748b";
   ctx.font = "bold 9.5px Arial";
   ctx.fillText("目的地：ファンテックラボ", hudX + 12, hudY + 15);
 
-  // 右テキスト：ゴールまでの残り距離
   ctx.textAlign = "right";
   if (remainingMeters > 0) {
     ctx.fillStyle = "#0284c7";
@@ -561,7 +550,6 @@ function drawDistanceHUD() {
     ctx.fillText("まもなく到着！", hudX + hudW - 12, hudY + 15);
   }
 
-  // プログレスバーの背景レール
   const barX = hudX + 12;
   const barY = hudY + 24;
   const barW = hudW - 36;
@@ -572,7 +560,6 @@ function drawDistanceHUD() {
   ctx.roundRect(barX, barY, barW, barH, 4);
   ctx.fill();
 
-  // プログレスバーの進捗ゲージ
   const fillW = Math.max(8, barW * progress);
   const barGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
   barGrad.addColorStop(0, "#38bdf8");
@@ -582,7 +569,6 @@ function drawDistanceHUD() {
   ctx.roundRect(barX, barY, fillW, barH, 4);
   ctx.fill();
 
-  // 現在地マーカー（小さい丸）
   ctx.fillStyle = "#ffffff";
   ctx.strokeStyle = "#0284c7";
   ctx.lineWidth = 2;
@@ -591,7 +577,6 @@ function drawDistanceHUD() {
   ctx.fill();
   ctx.stroke();
 
-  // 右端のゴールフラッグアイコン
   const flagX = barX + barW + 10;
   const flagY = barY + barH / 2;
   ctx.strokeStyle = "#0284c7";
@@ -610,7 +595,7 @@ function drawDistanceHUD() {
   ctx.fill();
 }
 
-// ファンテックラボ（FUN-TECH LABO）着陸シーン
+// ★ ファンテックラボ（FUN-TECH LABO）着陸シーン（ローディング表示付き） ★
 function drawGoalScene() {
   let grad = ctx.createLinearGradient(0, 0, 0, V_HEIGHT);
   grad.addColorStop(0, "#38bdf8");
@@ -718,7 +703,76 @@ function drawGoalScene() {
   // メッセージ
   ctx.fillStyle = "#0f172a";
   ctx.font = "bold 20px Arial";
-  ctx.fillText("ファンテックラボに到着！", V_WIDTH / 2, 60);
+  ctx.fillText("ファンテックラボに到着！", V_WIDTH / 2, 54);
+
+  // ★ 画面遷移までのローディングピル＆プログレスバー ★
+  const elapsed = Date.now() - goalStartTime;
+  const loadProgress = Math.min(1, Math.max(0, elapsed / GOAL_SCENE_DURATION));
+
+  const pillW = 200;
+  const pillH = 38;
+  const pillX = (V_WIDTH - pillW) / 2;
+  const pillY = 70;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(2, 132, 199, 0.14)";
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+  ctx.beginPath();
+  ctx.roundRect(pillX, pillY, pillW, pillH, 14);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(56, 189, 248, 0.45)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(pillX, pillY, pillW, pillH, 14);
+  ctx.stroke();
+
+  // 回転スピナーアイコン
+  const spinnerX = pillX + 26;
+  const spinnerY = pillY + 14;
+  ctx.save();
+  ctx.translate(spinnerX, spinnerY);
+  ctx.rotate(frames * 0.14);
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#0284c7";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(0, 0, 5.5, 0, Math.PI * 1.2);
+  ctx.stroke();
+  ctx.restore();
+
+  // ローディングテキスト
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#0369a1";
+  ctx.font = "bold 10.5px Arial";
+  ctx.fillText("完了画面へ移動しています...", spinnerX + 12, pillY + 17.5);
+
+  // ローディングゲージレール
+  const lBarX = pillX + 16;
+  const lBarY = pillY + 25;
+  const lBarW = pillW - 32;
+  const lBarH = 5;
+
+  ctx.fillStyle = "#e2e8f0";
+  ctx.beginPath();
+  ctx.roundRect(lBarX, lBarY, lBarW, lBarH, 3);
+  ctx.fill();
+
+  const lBarGrad = ctx.createLinearGradient(lBarX, 0, lBarX + lBarW, 0);
+  lBarGrad.addColorStop(0, "#38bdf8");
+  lBarGrad.addColorStop(1, "#0284c7");
+  ctx.fillStyle = lBarGrad;
+  ctx.beginPath();
+  ctx.roundRect(lBarX, lBarY, Math.max(6, lBarW * loadProgress), lBarH, 3);
+  ctx.fill();
 
   // 影
   const hoverOffset = Math.sin(frames * 0.08) * 6;
@@ -778,6 +832,7 @@ function drawGoalScene() {
 
   ctx.restore();
 
+  ctx.textAlign = "center";
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 14px Arial";
   ctx.fillText("荷物が無事に届けられました", V_WIDTH / 2, V_HEIGHT - 12);
@@ -876,7 +931,6 @@ function drawUI() {
   ctx.textAlign = "center";
 
   if (gameState === "START") {
-    // タイトルバッジ
     ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
     ctx.beginPath();
     ctx.roundRect(V_WIDTH / 2 - 68, 72, 136, 22, 11);
@@ -885,12 +939,10 @@ function drawUI() {
     ctx.font = "bold 10px Arial";
     ctx.fillText("DRONE DELIVERY", V_WIDTH / 2, 86);
 
-    // メインタイトル
     ctx.fillStyle = "#0f172a";
     ctx.font = "bold 24px Arial";
     ctx.fillText("荷物を届けよう", V_WIDTH / 2, 120);
 
-    // 操作説明カード
     const panelX = 22;
     const panelY = 212;
     const panelW = V_WIDTH - 44;
@@ -912,7 +964,6 @@ function drawUI() {
     ctx.roundRect(panelX, panelY, panelW, panelH, 18);
     ctx.stroke();
 
-    // カードヘッダーピル
     ctx.fillStyle = "#e0f2fe";
     ctx.beginPath();
     ctx.roundRect(V_WIDTH / 2 - 46, panelY + 14, 92, 22, 11);
@@ -922,7 +973,6 @@ function drawUI() {
     ctx.font = "bold 11.5px Arial";
     ctx.fillText("あそびかた", V_WIDTH / 2, panelY + 29);
 
-    // ステップ1
     ctx.textAlign = "left";
     const itemX = panelX + 20;
 
@@ -940,7 +990,6 @@ function drawUI() {
     ctx.font = "bold 12.5px Arial";
     ctx.fillText("画面をタップして上昇", itemX + 24, panelY + 60);
 
-    // ステップ2
     ctx.fillStyle = "#0284c7";
     ctx.beginPath();
     ctx.arc(itemX + 8, panelY + 88, 8, 0, Math.PI * 2);
@@ -955,7 +1004,6 @@ function drawUI() {
     ctx.font = "bold 12.5px Arial";
     ctx.fillText("指を離すとゆっくり下降", itemX + 24, panelY + 92);
 
-    // ステップ3
     ctx.fillStyle = "#0284c7";
     ctx.beginPath();
     ctx.arc(itemX + 8, panelY + 120, 8, 0, Math.PI * 2);
@@ -970,7 +1018,6 @@ function drawUI() {
     ctx.font = "bold 12.5px Arial";
     ctx.fillText("GOALゲートを通過して配達完了！", itemX + 24, panelY + 124);
 
-    // スタートCTAピルボタン風表示
     ctx.textAlign = "center";
     const pulseScale = 1 + Math.sin(frames * 0.08) * 0.025;
     ctx.save();
@@ -992,7 +1039,6 @@ function drawUI() {
     ctx.restore();
 
   } else if (gameState === "GAMEOVER") {
-    // ゲームオーバーカード
     const cardX = 36;
     const cardY = 175;
     const cardW = V_WIDTH - 72;
@@ -1024,12 +1070,13 @@ function drawUI() {
 
 function triggerGoalScene() {
   gameState = "GOAL_SCENE";
+  goalStartTime = Date.now();
   if (goalTimer) clearTimeout(goalTimer);
 
   goalTimer = setTimeout(() => {
     gameState = "GOAL_RESULT";
     resultActions.style.display = "flex";
-  }, 4000);
+  }, GOAL_SCENE_DURATION);
 }
 
 function handleAction() {
